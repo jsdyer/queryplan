@@ -1,37 +1,17 @@
-import { cleanLines } from './model.mjs';
-const input = document.querySelector('#input');
-const output = document.querySelector('#output');
-const status = document.querySelector('#status');
-const copy = document.querySelector('#copy');
-function update() {
-  const result = cleanLines(input.value);
-  output.value = result.text;
-  status.textContent = `${result.count} unique ${result.count === 1 ? 'line' : 'lines'}; ${result.removed} ${result.removed === 1 ? 'duplicate' : 'duplicates'} removed.`;
-  copy.disabled = result.count === 0;
-}
-input.addEventListener('input', update);
-document.querySelector('#sample').addEventListener('click', () => {
-  input.value = '  Halifax\nLangley\nHalifax\n\nVancouver  ';
-  update();
-});
-document.querySelector('#clear').addEventListener('click', () => {
-  input.value = '';
-  update();
-  input.focus();
-});
-if (navigator.clipboard && window.isSecureContext) {
-  copy.hidden = false;
-  copy.disabled = true;
-  copy.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(output.value);
-      status.textContent = 'Result copied.';
-    } catch {
-      output.focus();
-      output.select();
-      status.textContent = 'Copy was unavailable. The result is selected so you can copy it manually.';
-    }
-  });
-}
-// Namespace future preference storage as coolcode:<tool-id>:<key>.
-// Do not persist pasted text or uploads by default.
+import {parsePlan,comparePlans,csv,examples,LIMIT} from './model.mjs';
+const $=s=>document.querySelector(s);
+const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
+const fmt=v=>v==null?'Not reported':Array.isArray(v)?v.join(', ')||'None':typeof v==='number'?v.toLocaleString():String(v);
+let plans=null,side='before',diff=[],illustrative=false;
+function status(text,error=false){$('#status').textContent=text;$('#status').classList.toggle('error',error);}
+function invalidate(){plans=null;diff=[];$('#results').hidden=true;illustrative=false;status('Input changed. Visualize the plans to update your report.');}
+function inspect(id){const plan=plans[side],node=plan.nodes[id];const panel=$('#inspector');panel.replaceChildren(el('p',node.kind==='table'?'TABLE ACCESS':'OPERATION','eyebrow'),el('h3',node.label));const dl=el('dl');for(const [key,value] of [['Access type',node.access],['Chosen index',node.key],['Possible indexes',node.possibleKeys],['Estimated rows / scan',node.rows],['Estimated filtered %',node.filtered],['Estimated rows / join',node.produced],['Actual r_rows',node.actualRows],['Actual r_loops',node.actualLoops],['Reported optimizer cost',node.cost]]){dl.append(el('dt',key),el('dd',fmt(value)));}panel.append(dl);const detail=el('details');detail.append(el('summary','Original JSON for this node'),el('pre',JSON.stringify(node.raw,null,2)));panel.append(detail);document.querySelectorAll('.node').forEach(n=>n.setAttribute('aria-pressed',String(Number(n.dataset.id)===id)));}
+function render(){const plan=plans[side];$('#show-before').setAttribute('aria-pressed',String(side==='before'));$('#show-after').setAttribute('aria-pressed',String(side==='after'));$('#show-after').disabled=!plans.after;$('#stats').replaceChildren();for(const [value,label] of [[plan.tableCount,'table access nodes'],[plan.warnings.length,'nodes to investigate'],[fmt(plan.cost),'root optimizer cost · not time']]){const box=el('div',null,'stat');box.append(el('strong',String(value)),el('span',label));$('#stats').append(box);}$('#tree').replaceChildren();for(const node of plan.nodes){const button=el('button',null,'node');button.dataset.id=node.id;let depth=0,parent=node.parent;while(parent!=null){depth++;parent=plan.nodes[parent].parent;}button.style.setProperty('--indent',Math.min(depth,5));button.append(el('strong',node.label),el('small',node.kind==='table'?`${node.access??'Access not reported'} · ${node.key??'no chosen index'} · ${fmt(node.rows)} estimated rows / scan`:'Plan operation'));node.flags.forEach(flag=>button.append(el('span',flag,'badge')));button.addEventListener('click',()=>inspect(node.id));$('#tree').append(button);}$('#warnings').replaceChildren();if(!plan.warnings.length)$('#warnings').append(el('p','No scan, filesort or temporary-table flags found in the supported fields. This is not a performance guarantee.'));for(const node of plan.warnings){const b=el('button',`${node.label}: ${node.flags.join(', ')}`);b.addEventListener('click',()=>inspect(node.id));$('#warnings').append(b);}inspect(plan.nodes.find(n=>n.kind==='table')?.id??0);$('#comparison').hidden=!plans.after;$('#export-csv').disabled=!plans.after;$('#diff').replaceChildren();for(const row of diff){const tr=el('tr');tr.append(el('td',row.label),el('td',row.status));const access=el('td',`${fmt(row.before?.access)} → ${fmt(row.after?.access)}`);access.append(el('small',`${fmt(row.before?.key)} → ${fmt(row.after?.key)}`));tr.append(access,el('td',`${fmt(row.before?.rows)} → ${fmt(row.after?.rows)}`),el('td',row.changes.filter(f=>!['access','key','rows'].includes(f)).map(f=>`${f}: ${fmt(row.before?.[f])} → ${fmt(row.after?.[f])}`).join('; ')||'None'));$('#diff').append(tr);}}
+function analyze(){try{const before=parsePlan($('#before').value),after=$('#after').value.trim()?parsePlan($('#after').value):null;plans={before,after};side='before';diff=after?comparePlans(before,after):[];render();$('#results').hidden=false;status(`${illustrative?'Illustrative example — not measured results. ':''}${after?'Two plans parsed. Inspect the tree and table comparison below.':'Plan parsed. Inspect its tree below.'}`);}catch(error){plans=null;diff=[];$('#results').hidden=true;status(error.message,true);}}
+$('#analyze').addEventListener('click',analyze);
+$('#sample').addEventListener('click',()=>{$('#before').value=JSON.stringify(examples.before,null,2);$('#after').value=JSON.stringify(examples.after,null,2);illustrative=true;analyze();});
+$('#clear').addEventListener('click',()=>{for(const name of ['before','after']){$('#'+name).value='';$('#file-'+name).value='';}invalidate();status('Plans cleared. Nothing was saved.');$('#before').focus();});
+for(const name of ['before','after']){$('#'+name).addEventListener('input',invalidate);$('#show-'+name).addEventListener('click',()=>{if(plans?.[name]){side=name;render();}});$('#file-'+name).addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;invalidate();try{if(file.size>LIMIT)throw new Error('Use a JSON file smaller than 2 MB.');$('#'+name).value=await file.text();status('Local file loaded. Visualize the plan to inspect it.');}catch(e){status(e.message,true);}});}
+function save(name,type,content){const url=URL.createObjectURL(new Blob([content],{type}));const link=el('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+$('#export-json').addEventListener('click',()=>{if(plans)save('query-plan-report.json','application/json',JSON.stringify({generatedAt:new Date().toISOString(),illustrative,method:'Table name + occurrence; optimizer estimates are not measured runtime.',before:plans.before.raw,after:plans.after?.raw??null,comparison:diff.map(r=>({label:r.label,status:r.status,changes:r.changes}))},null,2));});
+$('#export-csv').addEventListener('click',()=>{if(plans?.after)save('query-plan-comparison.csv','text/csv;charset=utf-8',csv([['Data kind','Table','Status','Before access','After access','Before index','After index','Before rows / scan','After rows / scan','Changed fields'],...diff.map(r=>[illustrative?'Illustrative example':'User-provided plans',r.label,r.status,r.before?.access,r.after?.access,r.before?.key,r.after?.key,r.before?.rows,r.after?.rows,r.changes.join('; ')])]));});

@@ -1,16 +1,22 @@
 {
-  "id": "coolcode-tool-template",
-  "title": "CoolCode Tool Starter",
-  "description": "A browser-only example that trims lines and removes exact duplicates.",
-  "category": "security",
-  "tags": ["text", "lines", "duplicates"],
+  "id": "queryplan",
+  "title": "Query Plan Lab",
+  "description": "Read MySQL and MariaDB execution plans, inspect table access and compare optimizer estimates before and after a change.",
+  "category": "projects",
+  "tags": [
+    "mysql",
+    "mariadb",
+    "database",
+    "query plan",
+    "performance"
+  ],
   "icon": "scan-search",
-  "url": "/coolcode-tool-template/",
-  "source": "https://github.com/jsdyer/coolcode-tool-template",
+  "url": "/queryplan/",
+  "source": "https://github.com/jsdyer/queryplan",
   "hosting": "project",
   "access": "browser",
   "data_info": {
     "mode": "local",
-    "detail": "The browser reads the text you paste and compares its lines."
+    "detail": "MySQL and MariaDB EXPLAIN JSON plans are parsed and compared locally in your browser."
   }
 }

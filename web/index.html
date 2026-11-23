@@ -1,34 +1,10 @@
 <!doctype html>
-<html lang="en-CA">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="{{DESCRIPTION}}">
-  <title>{{TITLE}} · CoolCode</title>
-  <link rel="stylesheet" href="./style.css">
-  <script type="module" src="./app.mjs"></script>
-  {{VISIT_COUNTER}}
-</head>
-<body data-tool-id="{{TOOL_ID}}">
-  <a class="skip" href="#main">Skip to content</a>
-  <header><a href="https://coolcode.ca/">← CoolCode.ca</a><a href="{{SOURCE_URL}}">Source &amp; instructions ↗</a></header>
-  <main id="main">
-    <p class="eyebrow">Browser tool starter</p>
-    <h1>{{TITLE}}</h1>
-    <p class="intro">{{DESCRIPTION}}</p>
-    <section aria-labelledby="example-title">
-      <h2 id="example-title">Clean a list</h2>
-      <p>Trim spaces, skip blank lines and remove exact duplicates. Capitalization stays distinct.</p>
-      <div class="panels">
-        <div><label for="input">Your lines</label><textarea id="input" rows="10" maxlength="100000" spellcheck="false" placeholder="Paste one item per line"></textarea></div>
-        <div><label for="output">Cleaned lines</label><textarea id="output" rows="10" readonly spellcheck="false"></textarea></div>
-      </div>
-      <div class="actions"><button id="sample" type="button">Load example</button><button id="clear" type="button">Clear</button><button id="copy" type="button" hidden>Copy result</button></div>
-      <p id="status" role="status" aria-live="polite">Paste a list to begin.</p>
-      <noscript><p>This tool needs JavaScript to process your text. The source is available above.</p></noscript>
-    </section>
-    <aside aria-label="Privacy"><strong>Stays on your device.</strong> The browser processes your text in this tab. Reloading clears it.</aside>
-  </main>
-  <footer>Part of <a href="https://coolcode.ca/">the CoolCode collection</a>. {{ISSUE_LINK}}</footer>
-</body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{TITLE}} · CoolCode</title><meta name="description" content="{{DESCRIPTION}}"><meta name="theme-color" content="#173c43"><link rel="canonical" href="https://coolcode.ca/queryplan/"><link rel="stylesheet" href="./style.css"><script type="module" src="./app.mjs"></script>{{VISIT_COUNTER}}</head>
+<body data-tool-id="{{TOOL_ID}}"><a class="skip" href="#main">Skip to the tool</a><header><a class="brand" href="https://coolcode.ca/">CoolCode.ca</a><a href="#method">Reading a plan</a></header>
+<main id="main"><section class="hero"><p class="eyebrow">QUERY PLAN LAB · LOCAL BROWSER TOOL</p><h1>Make the query<br>plan visible.</h1><p class="lede">Follow the tables, indexes and estimates behind your query. Compare two plans to see what the optimizer changed.</p><div class="chips"><span>MySQL &amp; MariaDB JSON</span><span>No database connection</span><span>Your plans stay in this browser</span></div></section>
+<section class="workspace" aria-labelledby="input-title"><div class="section-heading"><div><p class="eyebrow">01 / INPUT</p><h2 id="input-title">Bring your execution plan</h2></div><button id="sample" class="secondary">Load illustrative comparison</button></div><p>Run <code>EXPLAIN FORMAT=JSON SELECT …</code> in your database and paste its JSON output. Add a second plan to compare. The example is hand-written to demonstrate the interface.</p>
+<div class="inputs"><div><label for="before">Before / primary plan</label><textarea id="before" spellcheck="false" placeholder='{"query_block": { … }}'></textarea><label class="file-label" for="file-before">Or open a local JSON file <input id="file-before" type="file" accept=".json,application/json"></label></div><div><label for="after">After / comparison plan <span class="muted">(optional)</span></label><textarea id="after" spellcheck="false" placeholder="Paste a second plan to see changes"></textarea><label class="file-label" for="file-after">Or open a local JSON file <input id="file-after" type="file" accept=".json,application/json"></label></div></div>
+<div class="actions"><button id="analyze">Visualize plan</button><button id="clear" class="secondary">Clear plans</button><span class="muted">Maximum 2 MB per plan</span></div><p id="status" role="status" aria-live="polite">Paste a plan or explore the illustrative comparison.</p></section>
+<section id="results" hidden aria-labelledby="results-title"><div class="section-heading"><div><p class="eyebrow">02 / INSPECT</p><h2 id="results-title">Inside the plan</h2></div><div class="tabs"><button id="show-before" aria-pressed="true">Before</button><button id="show-after" aria-pressed="false">After</button></div></div><div id="stats" class="stats"></div><div class="plan-layout"><div><h3>Plan structure</h3><p class="muted">Select a node to inspect its evidence. Indentation follows the JSON nesting.</p><div id="tree"></div></div><aside id="inspector" aria-live="polite"></aside></div><div class="attention"><h3>Worth investigating</h3><div id="warnings"></div><p>These are prompts to investigate, not errors. A scan may be the right choice for a small table. Filesort does not prove that sorting spilled to disk.</p></div>
+<section id="comparison" hidden><p class="eyebrow">03 / COMPARE</p><h2>Table access comparison</h2><p>This table compares access fields only; review operation changes such as filesort in each plan tree. Tables match by name and occurrence order. Reordered subqueries or repeated table names may need manual review. Estimates describe the optimizer's expectations; they do not prove a runtime improvement.</p><div class="table-scroll"><table><thead><tr><th>Table</th><th>Status</th><th>Access / index</th><th>Rows per scan</th><th>Other changes</th></tr></thead><tbody id="diff"></tbody></table></div></section><div class="actions"><button id="export-json" class="secondary">Save report JSON</button><button id="export-csv" class="secondary">Save comparison CSV</button></div></section>
+<section id="method" class="method"><p class="eyebrow">METHOD &amp; LIMITS</p><h2>A plan is a hypothesis. Measure it.</h2><div class="method-grid"><article><h3>Read access paths</h3><p><code>ALL</code> means a full table scan; <code>index</code> means a full index scan. Compare the chosen key with possible keys, filter estimates and table size before deciding whether an index is missing.</p></article><article><h3>Keep costs comparable</h3><p>Optimizer cost is not milliseconds. Root cost is shown separately and never summed with child costs. Compare the same query, engine version, data and settings. MySQL and MariaDB costs are not interchangeable.</p></article><article><h3>Separate actual measurements</h3><p>MariaDB <code>ANALYZE FORMAT=JSON</code> may include <code>r_rows</code> and <code>r_loops</code>; these are displayed separately. ANALYZE executes the query. MySQL TREE output and JSON format version 2 are not supported here.</p></article></div><p>Inputs are held only in memory. No plan, SQL or file is uploaded or saved automatically. CoolCode's aggregate visit counter runs independently and does not receive your plan. Downloaded reports contain your plan details.</p><p>References: <a href="https://dev.mysql.com/doc/refman/8.4/en/explain-output.html">MySQL EXPLAIN</a> · <a href="https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/analyze-and-explain-statements/explain-format-json">MariaDB JSON plans</a></p><p>Related tools: <a href="https://coolcode.ca/rackrecipes/">Rack Recipes</a> · <a href="https://coolcode.ca/rackexpiry/">Rack Expiry</a></p></section></main><footer><a href="{{SOURCE_URL}}">Source &amp; instructions</a>{{ISSUE_LINK}}<span>Query Plan Lab · CoolCode</span></footer></body></html>

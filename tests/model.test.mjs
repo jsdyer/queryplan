@@ -1,21 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanLines } from '../web/model.mjs';
-test('trims, removes blanks and preserves first-seen order', () => {
-  assert.deepEqual(cleanLines('  Halifax\nLangley\nHalifax\n\nVancouver  '), {
-    text: 'Halifax\nLangley\nVancouver', count: 3, removed: 1,
-  });
-});
-test('supports Windows and old Mac line endings', () => {
-  assert.equal(cleanLines('a\r\nb\ra').text, 'a\nb');
-});
-test('empty text and whitespace produce an empty result', () => {
-  assert.deepEqual(cleanLines(' \n\t'), { text: '', count: 0, removed: 0 });
-});
-test('preserves case and Unicode', () => {
-  assert.equal(cleanLines('Québec\nquébec\n東京\nQuébec').text, 'Québec\nquébec\n東京');
-});
-test('treats markup as ordinary text', () => {
-  assert.equal(cleanLines('<script>alert(1)</script>\n<script>alert(1)</script>').text, '<script>alert(1)</script>');
-});
-test('rejects non-text input', () => { assert.throws(() => cleanLines(null), TypeError); });
+import {parsePlan,comparePlans,csv,examples,LIMIT} from '../web/model.mjs';
+const parse=v=>parsePlan(JSON.stringify(v));
+test('extracts MySQL estimates and nested operations without summing costs',()=>{const p=parse(examples.before);assert.equal(p.tableCount,2);assert.equal(p.nodes.filter(n=>n.label==='Nested loop').length,1);assert.equal(p.cost,85420);assert.equal(p.nodes.find(n=>n.label==='customers').rows,50000);assert.equal(p.warnings.length,2);assert.ok(p.nodes.find(n=>n.label==='customers').parent!=null);});
+test('keeps MariaDB measured zeros distinct from estimates',()=>{const p=parse({query_block:{select_id:1,nested_loop:[{table:{table_name:'t',access_type:'index',rows:72,filtered:0,r_rows:0,r_loops:2}}]}});const n=p.nodes.find(n=>n.kind==='table');assert.equal(n.rows,72);assert.equal(n.actualRows,0);assert.equal(n.actualLoops,2);assert.equal(n.filtered,0);assert.deepEqual(n.flags,['Full index scan']);});
+test('accepts EXPLAIN-column exports and fenced JSON',()=>{assert.equal(parse([{EXPLAIN:JSON.stringify(examples.before)}]).tableCount,2);assert.equal(parsePlan('```json\n'+JSON.stringify(examples.after)+'\n```').cost,1850);});
+test('compares tables and does not infer runtime improvement',()=>{const diff=comparePlans(parse(examples.before),parse(examples.after));assert.equal(diff[0].status,'Changed');assert.ok(diff[0].changes.includes('access'));assert.equal(diff[0].before.rows,50000);assert.equal(diff[0].after.rows,1000);assert.equal(comparePlans(parse(examples.before),parse(examples.before))[0].status,'Unchanged');});
+test('handles additions and repeated table names explicitly',()=>{const a=parse({query_block:{table:{table_name:'t',rows:1}}});const b=parse({query_block:{nested_loop:[{table:{table_name:'t',rows:1}},{table:{table_name:'t',rows:2}}]}});assert.deepEqual(comparePlans(a,b).map(r=>r.status),['Unchanged','Added']);assert.equal(comparePlans(b,a)[1].status,'Removed');});
+test('preserves untrusted text and unrecognized source fields',()=>{const name='<img src=x onerror=alert(1)>';const p=parse({query_block:{table:{table_name:name,custom_field:'evidence'}}});assert.equal(p.nodes[1].label,name);assert.equal(p.nodes[1].raw.custom_field,'evidence');});
+test('rejects missing, malformed, unsupported and oversized data',()=>{for(const v of ['',null,'no json','{}','{"query_plan":{}}',' '.repeat(LIMIT+1)])assert.throws(()=>parsePlan(v));assert.throws(()=>parse([{EXPLAIN:'bad'}]));let root={query_block:{}};let n=root.query_block;for(let i=0;i<65;i++)n=n.child={};assert.throws(()=>parse(root),/deeply/);});
+test('CSV quotes values and protects formula cells',()=>{assert.equal(csv([['=SUM(A1)','a"b','a,b',null]]),'"\'=SUM(A1)","a""b","a,b",""');});
